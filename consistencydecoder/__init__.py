@@ -154,7 +154,8 @@ class ConsistencyDecoder:
         for i in schedule_timesteps:
             t = ts[i].item()
             t_ = torch.tensor([t] * features.shape[0]).to(self.device)
-            noise = torch.randn_like(x_start)
+            # noise = torch.randn_like(x_start)
+            noise = torch.randn(x_start.shape, dtype=x_start.dtype, generator=torch.Generator('cpu').manual_seed(0)).to(device=x_start.device)
             x_start = (
                 _extract_into_tensor(self.sqrt_alphas_cumprod, t_, x_start.shape)
                 * x_start
