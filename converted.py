@@ -574,9 +574,21 @@ print("running with diffusers unet")
 
 unet.to('cuda')
 
-decoder_consistency.ckpt = model
+decoder_consistency.ckpt = unet
 
 sample_consistency_new_2 = decoder_consistency(latent)
 save_image(sample_consistency_new_2, "con_new_2.png")
 
 assert (sample_consistency_orig == sample_consistency_new_2).all()
+
+print("running with diffusers pipeline")
+
+from diffusers.pipelines.consistency_models.pipeline_consistency_decoder import ConsistencyModelPipeline
+
+pipe = ConsistencyModelPipeline(unet)
+sample_consistency_new_3 = pipe(latent, output_type='np').images
+
+assert (sample_consistency_orig == sample_consistency_new_3).all()
+
+# TODO - return type == pil
+# pipe(latent).images[0].save('con_new_3.png')
