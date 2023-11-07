@@ -236,11 +236,16 @@ class ConvUNetVAE(nn.Module):
         self.output = ImageUnembedding()
 
     def forward(self, x, t, features) -> torch.Tensor:
-        x = torch.cat([x, F.upsample_nearest(features, scale_factor=8)], dim=1)
-        t = self.embed_time(t)
-        x = self.embed_image(x)
-
         converted = hasattr(self, "converted") and self.converted
+
+        x = torch.cat([x, F.upsample_nearest(features, scale_factor=8)], dim=1)
+
+        if converted:
+            t = self.time_embedding(self.time_proj(t))
+        else:
+            t = self.embed_time(t)
+
+        x = self.embed_image(x)
 
         skips = [x]
         for i, down in enumerate(self.down):

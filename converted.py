@@ -2,6 +2,7 @@ import torch
 from diffusers import StableDiffusionPipeline
 from consistencydecoder import ConsistencyDecoder, save_image, load_image
 from diffusers.models.unet_2d_blocks import ResnetDownsampleBlock2D, UNetMidBlock2D, ResnetUpsampleBlock2D
+from diffusers.models.embeddings import TimestepEmbedding
 
 from conv_unet_vae import ConvUNetVAE, rename_state_dict
 from safetensors.torch import load_file as stl
@@ -451,8 +452,41 @@ conv_out = nn.Conv2d(
 conv_norm_out.load_state_dict(model.output.gn.state_dict())
 conv_out.load_state_dict(model.output.f.state_dict())
 
+print('timestep projection (time_proj) (time_embedding)')
+
+f1_sd = model.embed_time.f_1.state_dict()
+f2_sd = model.embed_time.f_2.state_dict()
+
+time_embedding_sd = {
+    "linear_1.weight": f1_sd.pop("weight"),
+    "linear_1.bias": f1_sd.pop("bias"),
+    "linear_2.weight": f2_sd.pop("weight"),
+    "linear_2.bias": f2_sd.pop("bias"),
+}
+
+assert len(f1_sd) == 0
+assert len(f2_sd) == 0
+
+time_embedding_type = "learned"
+block_out_channels = [320]
+num_train_timesteps = 1024
+time_embedding_dim = 1280
+
+time_proj = nn.Embedding(num_train_timesteps, block_out_channels[0])
+timestep_input_dim = block_out_channels[0]
+
+time_embedding = TimestepEmbedding(
+    timestep_input_dim,
+    time_embedding_dim
+)
+
+time_proj.load_state_dict(model.embed_time.emb.state_dict())
+time_embedding.load_state_dict(time_embedding_sd)
+
 print('CONVERT')
 
+time_embedding.to('cuda')
+time_proj.to('cuda')
 conv_in.to('cuda')
 
 block_one.to('cuda')
@@ -470,6 +504,8 @@ up_block_four.to('cuda')
 conv_norm_out.to('cuda')
 conv_out.to('cuda')
 
+model.time_proj = time_proj
+model.time_embedding = time_embedding
 model.embed_image = conv_in
 
 model.down[0] = block_one
