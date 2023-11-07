@@ -5,6 +5,7 @@ from diffusers.models.unet_2d_blocks import ResnetDownsampleBlock2D, UNetMidBloc
 
 from conv_unet_vae import ConvUNetVAE, rename_state_dict
 from safetensors.torch import load_file as stl
+from torch import nn
 import ipdb
 
 # encode with stable diffusion vae
@@ -410,27 +411,58 @@ up_block_four = ResnetUpsampleBlock2D(
 
 up_block_four.load_state_dict(up_block_four_sd_new)
 
+print("initial projection (conv_in)")
+
+conv_in_sd_orig = model.embed_image.state_dict()
+conv_in_sd_new = {}
+
+conv_in_sd_new['weight'] = conv_in_sd_orig.pop('f.weight')
+conv_in_sd_new['bias'] = conv_in_sd_orig.pop('f.bias')
+
+assert len(conv_in_sd_orig) == 0
+
+in_channels = 7
+block_out_channels = [320]
+conv_in_kernel = 3
+conv_in_padding = (conv_in_kernel - 1) // 2
+conv_in = nn.Conv2d(
+    in_channels, block_out_channels[0], kernel_size=conv_in_kernel, padding=conv_in_padding
+)
+
+conv_in.load_state_dict(conv_in_sd_new)
+
+
+
 print('CONVERT')
+
+conv_in.to('cuda')
 
 block_one.to('cuda')
 block_two.to('cuda')
 block_three.to('cuda')
 block_four.to('cuda')
+
 mid_block_one.to('cuda')
+
 up_block_one.to('cuda')
 up_block_two.to('cuda')
 up_block_three.to('cuda')
 up_block_four.to('cuda')
 
+model.embed_image = conv_in
+
 model.down[0] = block_one
 model.down[1] = block_two
 model.down[2] = block_three
 model.down[3] = block_four
+
 model.mid = mid_block_one
+
 model.up[-1] = up_block_one
 model.up[-2] = up_block_two
 model.up[-3] = up_block_three
 model.up[-4] = up_block_four
+
 model.converted = True
 
 sample_consistency_new = decoder_consistency(latent)
