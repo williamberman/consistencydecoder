@@ -286,12 +286,60 @@ up_block_one = ResnetUpsampleBlock2D(
 
 up_block_one.load_state_dict(up_block_one_sd_new)
 
+print('UP BLOCK TWO')
+
+up_block_two_sd_orig = model.up[-2].state_dict()
+up_block_two_sd_new = {}
+
+for i in range(4):
+    up_block_two_sd_new[f"resnets.{i}.norm1.weight"]         = up_block_two_sd_orig.pop(f"{i}.gn_1.weight")
+    up_block_two_sd_new[f"resnets.{i}.norm1.bias"]           = up_block_two_sd_orig.pop(f"{i}.gn_1.bias")
+    up_block_two_sd_new[f"resnets.{i}.conv1.weight"]         = up_block_two_sd_orig.pop(f"{i}.f_1.weight")
+    up_block_two_sd_new[f"resnets.{i}.conv1.bias"]           = up_block_two_sd_orig.pop(f"{i}.f_1.bias")
+    up_block_two_sd_new[f"resnets.{i}.time_emb_proj.weight"] = up_block_two_sd_orig.pop(f"{i}.f_t.weight")
+    up_block_two_sd_new[f"resnets.{i}.time_emb_proj.bias"]   = up_block_two_sd_orig.pop(f"{i}.f_t.bias")
+    up_block_two_sd_new[f"resnets.{i}.norm2.weight"]         = up_block_two_sd_orig.pop(f"{i}.gn_2.weight")
+    up_block_two_sd_new[f"resnets.{i}.norm2.bias"]           = up_block_two_sd_orig.pop(f"{i}.gn_2.bias")
+    up_block_two_sd_new[f"resnets.{i}.conv2.weight"]         = up_block_two_sd_orig.pop(f"{i}.f_2.weight")
+    up_block_two_sd_new[f"resnets.{i}.conv2.bias"]           = up_block_two_sd_orig.pop(f"{i}.f_2.bias")
+    up_block_two_sd_new[f"resnets.{i}.conv_shortcut.weight"] = up_block_two_sd_orig.pop(f"{i}.f_s.weight")
+    up_block_two_sd_new[f"resnets.{i}.conv_shortcut.bias"]   = up_block_two_sd_orig.pop(f"{i}.f_s.bias")
+
+up_block_two_sd_new[f"upsamplers.0.norm1.weight"]         = up_block_two_sd_orig.pop(f"4.gn_1.weight")
+up_block_two_sd_new[f"upsamplers.0.norm1.bias"]           = up_block_two_sd_orig.pop(f"4.gn_1.bias")
+up_block_two_sd_new[f"upsamplers.0.conv1.weight"]         = up_block_two_sd_orig.pop(f"4.f_1.weight")
+up_block_two_sd_new[f"upsamplers.0.conv1.bias"]           = up_block_two_sd_orig.pop(f"4.f_1.bias")
+up_block_two_sd_new[f"upsamplers.0.time_emb_proj.weight"] = up_block_two_sd_orig.pop(f"4.f_t.weight")
+up_block_two_sd_new[f"upsamplers.0.time_emb_proj.bias"]   = up_block_two_sd_orig.pop(f"4.f_t.bias")
+up_block_two_sd_new[f"upsamplers.0.norm2.weight"]         = up_block_two_sd_orig.pop(f"4.gn_2.weight")
+up_block_two_sd_new[f"upsamplers.0.norm2.bias"]           = up_block_two_sd_orig.pop(f"4.gn_2.bias")
+up_block_two_sd_new[f"upsamplers.0.conv2.weight"]         = up_block_two_sd_orig.pop(f"4.f_2.weight")
+up_block_two_sd_new[f"upsamplers.0.conv2.bias"]           = up_block_two_sd_orig.pop(f"4.f_2.bias")
+
+assert len(up_block_two_sd_orig) == 0
+
+up_block_two = ResnetUpsampleBlock2D(
+    in_channels=640, 
+    prev_output_channel=1024,
+    out_channels=1024, 
+    temb_channels=1280, 
+    num_layers=4, 
+    add_upsample=True,
+    resnet_time_scale_shift="scale_shift",
+    resnet_eps=1e-5
+)
+
+up_block_two.load_state_dict(up_block_two_sd_new)
+
+print('CONVERT')
+
 block_one.to('cuda')
 block_two.to('cuda')
 block_three.to('cuda')
 block_four.to('cuda')
 mid_block_one.to('cuda')
 up_block_one.to('cuda')
+up_block_two.to('cuda')
 
 model.down[0] = block_one
 model.down[1] = block_two
@@ -299,6 +347,7 @@ model.down[2] = block_three
 model.down[3] = block_four
 model.mid = mid_block_one
 model.up[-1] = up_block_one
+model.up[-2] = up_block_two
 model.converted = True
 
 sample_consistency_new = decoder_consistency(latent)
