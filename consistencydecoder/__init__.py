@@ -165,7 +165,16 @@ class ConsistencyDecoder:
                 * noise
             )
             c_in = _extract_into_tensor(self.c_in, t_, x_start.shape)
-            model_output = self.ckpt(c_in * x_start, t_, features=features)
+
+            from diffusers import UNet2DConditionModel
+            import torch.nn.functional as F
+
+            if isinstance(self.ckpt, UNet2DConditionModel):
+                input = torch.concat([c_in * x_start, F.upsample_nearest(features, scale_factor=8)], dim=1)
+                model_output = self.ckpt(input, t_)
+            else:
+                model_output = self.ckpt(c_in * x_start, t_, features=features)
+
             B, C = x_start.shape[:2]
             model_output, _ = torch.split(model_output, C, dim=1)
             pred_xstart = (

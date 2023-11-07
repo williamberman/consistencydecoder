@@ -3,6 +3,7 @@ from diffusers import StableDiffusionPipeline
 from consistencydecoder import ConsistencyDecoder, save_image, load_image
 from diffusers.models.unet_2d_blocks import ResnetDownsampleBlock2D, UNetMidBlock2D, ResnetUpsampleBlock2D
 from diffusers.models.embeddings import TimestepEmbedding
+from diffusers import UNet2DConditionModel
 
 from conv_unet_vae import ConvUNetVAE, rename_state_dict
 from safetensors.torch import load_file as stl
@@ -422,8 +423,9 @@ conv_in_sd_new['bias'] = conv_in_sd_orig.pop('f.bias')
 
 assert len(conv_in_sd_orig) == 0
 
+block_out_channels = [320, 640, 1024, 1024]
+
 in_channels = 7
-block_out_channels = [320]
 conv_in_kernel = 3
 conv_in_padding = (conv_in_kernel - 1) // 2
 conv_in = nn.Conv2d(
@@ -435,7 +437,6 @@ conv_in.load_state_dict(conv_in_sd_new)
 print('out projection (conv_out) (conv_norm_out)')
 out_channels = 6
 norm_num_groups = 32
-block_out_channels = [320]
 norm_eps = 1e-5
 act_fn = 'silu'
 conv_out_kernel = 3
@@ -468,7 +469,6 @@ assert len(f1_sd) == 0
 assert len(f2_sd) == 0
 
 time_embedding_type = "learned"
-block_out_channels = [320]
 num_train_timesteps = 1024
 time_embedding_dim = 1280
 
@@ -529,3 +529,58 @@ sample_consistency_new = decoder_consistency(latent)
 save_image(sample_consistency_new, "con_new.png")
 
 assert (sample_consistency_orig == sample_consistency_new).all()
+
+print("making unet")
+
+unet = UNet2DConditionModel(
+    in_channels=in_channels,
+    out_channels=out_channels,
+    down_block_types=("ResnetDownsampleBlock2D", "ResnetDownsampleBlock2D", "ResnetDownsampleBlock2D", "ResnetDownsampleBlock2D"),
+    mid_block_type = "UNetMidBlock2D",
+    up_block_types=("ResnetUpsampleBlock2D", "ResnetUpsampleBlock2D", "ResnetUpsampleBlock2D", "ResnetUpsampleBlock2D"),
+    block_out_channels=block_out_channels,
+    layers_per_block=3,
+    norm_num_groups=norm_num_groups,
+    norm_eps=norm_eps,
+    resnet_time_scale_shift="scale_shift",
+    time_embedding_type="learned",
+    time_embedding_dim=time_embedding_dim,
+    conv_in_kernel=conv_in_kernel,
+    conv_out_kernel=conv_out_kernel,
+    num_train_timesteps=num_train_timesteps,
+    unet_mid_block_num_layers=1,
+)
+
+unet_state_dict = {}
+
+def add_state_dict(prefix, mod):
+    for k, v in mod.state_dict().items():
+        unet_state_dict[f"{prefix}.{k}"] = v
+
+add_state_dict("conv_in", conv_in)
+add_state_dict("time_proj", time_proj)
+add_state_dict("time_embedding", time_embedding)
+add_state_dict("down_blocks.0", block_one)
+add_state_dict("down_blocks.1", block_two)
+add_state_dict("down_blocks.2", block_three)
+add_state_dict("down_blocks.3", block_four)
+add_state_dict("mid_block", mid_block_one)
+add_state_dict("up_blocks.0", up_block_one)
+add_state_dict("up_blocks.1", up_block_two)
+add_state_dict("up_blocks.2", up_block_three)
+add_state_dict("up_blocks.3", up_block_four)
+add_state_dict("conv_norm_out", conv_norm_out)
+add_state_dict("conv_out", conv_out)
+
+unet.load_state_dict(unet_state_dict)
+
+print("running with diffusers unet")
+
+unet.to('cuda')
+
+decoder_consistency.ckpt = model
+
+sample_consistency_new_2 = decoder_consistency(latent)
+save_image(sample_consistency_new_2, "con_new_2.png")
+
+assert (sample_consistency_orig == sample_consistency_new_2).all()
