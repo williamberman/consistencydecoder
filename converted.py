@@ -376,6 +376,40 @@ up_block_three = ResnetUpsampleBlock2D(
 
 up_block_three.load_state_dict(up_block_three_sd_new)
 
+print('UP BLOCK FOUR')
+
+up_block_four_sd_orig = model.up[-4].state_dict()
+up_block_four_sd_new = {}
+
+for i in range(4):
+    up_block_four_sd_new[f"resnets.{i}.norm1.weight"]         = up_block_four_sd_orig.pop(f"{i}.gn_1.weight")
+    up_block_four_sd_new[f"resnets.{i}.norm1.bias"]           = up_block_four_sd_orig.pop(f"{i}.gn_1.bias")
+    up_block_four_sd_new[f"resnets.{i}.conv1.weight"]         = up_block_four_sd_orig.pop(f"{i}.f_1.weight")
+    up_block_four_sd_new[f"resnets.{i}.conv1.bias"]           = up_block_four_sd_orig.pop(f"{i}.f_1.bias")
+    up_block_four_sd_new[f"resnets.{i}.time_emb_proj.weight"] = up_block_four_sd_orig.pop(f"{i}.f_t.weight")
+    up_block_four_sd_new[f"resnets.{i}.time_emb_proj.bias"]   = up_block_four_sd_orig.pop(f"{i}.f_t.bias")
+    up_block_four_sd_new[f"resnets.{i}.norm2.weight"]         = up_block_four_sd_orig.pop(f"{i}.gn_2.weight")
+    up_block_four_sd_new[f"resnets.{i}.norm2.bias"]           = up_block_four_sd_orig.pop(f"{i}.gn_2.bias")
+    up_block_four_sd_new[f"resnets.{i}.conv2.weight"]         = up_block_four_sd_orig.pop(f"{i}.f_2.weight")
+    up_block_four_sd_new[f"resnets.{i}.conv2.bias"]           = up_block_four_sd_orig.pop(f"{i}.f_2.bias")
+    up_block_four_sd_new[f"resnets.{i}.conv_shortcut.weight"] = up_block_four_sd_orig.pop(f"{i}.f_s.weight")
+    up_block_four_sd_new[f"resnets.{i}.conv_shortcut.bias"]   = up_block_four_sd_orig.pop(f"{i}.f_s.bias")
+
+assert len(up_block_four_sd_orig) == 0
+
+up_block_four = ResnetUpsampleBlock2D(
+    in_channels=320, 
+    prev_output_channel=640,
+    out_channels=320, 
+    temb_channels=1280, 
+    num_layers=4, 
+    add_upsample=False,
+    resnet_time_scale_shift="scale_shift",
+    resnet_eps=1e-5
+)
+
+up_block_four.load_state_dict(up_block_four_sd_new)
+
 print('CONVERT')
 
 block_one.to('cuda')
@@ -386,6 +420,7 @@ mid_block_one.to('cuda')
 up_block_one.to('cuda')
 up_block_two.to('cuda')
 up_block_three.to('cuda')
+up_block_four.to('cuda')
 
 model.down[0] = block_one
 model.down[1] = block_two
@@ -395,6 +430,7 @@ model.mid = mid_block_one
 model.up[-1] = up_block_one
 model.up[-2] = up_block_two
 model.up[-3] = up_block_three
+model.up[-4] = up_block_four
 model.converted = True
 
 sample_consistency_new = decoder_consistency(latent)

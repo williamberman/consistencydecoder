@@ -262,7 +262,7 @@ class ConvUNetVAE(nn.Module):
         print(x.float().abs().sum())
 
         for i, up in enumerate(self.up[::-1]):
-            if converted and i in [0, 1, 2]:
+            if converted and i in [0, 1, 2, 3]:
                 skip_4 = skips.pop()
                 skip_3 = skips.pop()
                 skip_2 = skips.pop()
