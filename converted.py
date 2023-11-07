@@ -431,7 +431,25 @@ conv_in = nn.Conv2d(
 
 conv_in.load_state_dict(conv_in_sd_new)
 
+print('out projection (conv_out) (conv_norm_out)')
+out_channels = 6
+norm_num_groups = 32
+block_out_channels = [320]
+norm_eps = 1e-5
+act_fn = 'silu'
+conv_out_kernel = 3
+conv_out_padding = (conv_out_kernel - 1) // 2
+conv_norm_out = nn.GroupNorm(
+    num_channels=block_out_channels[0], num_groups=norm_num_groups, eps=norm_eps
+)
+# uses torch.functional in orig
+# conv_act = get_activation(act_fn)
+conv_out = nn.Conv2d(
+    block_out_channels[0], out_channels, kernel_size=conv_out_kernel, padding=conv_out_padding
+)
 
+conv_norm_out.load_state_dict(model.output.gn.state_dict())
+conv_out.load_state_dict(model.output.f.state_dict())
 
 print('CONVERT')
 
@@ -449,6 +467,9 @@ up_block_two.to('cuda')
 up_block_three.to('cuda')
 up_block_four.to('cuda')
 
+conv_norm_out.to('cuda')
+conv_out.to('cuda')
+
 model.embed_image = conv_in
 
 model.down[0] = block_one
@@ -462,6 +483,9 @@ model.up[-1] = up_block_one
 model.up[-2] = up_block_two
 model.up[-3] = up_block_three
 model.up[-4] = up_block_four
+
+model.output.gn = conv_norm_out
+model.output.f = conv_out
 
 model.converted = True
 
