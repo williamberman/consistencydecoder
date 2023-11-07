@@ -3,7 +3,7 @@ from diffusers import StableDiffusionPipeline
 from consistencydecoder import ConsistencyDecoder, save_image, load_image
 from diffusers.models.unet_2d_blocks import ResnetDownsampleBlock2D, UNetMidBlock2D, ResnetUpsampleBlock2D
 from diffusers.models.embeddings import TimestepEmbedding
-from diffusers import UNet2DConditionModel
+from diffusers import UNet2DModel
 
 from conv_unet_vae import ConvUNetVAE, rename_state_dict
 from safetensors.torch import load_file as stl
@@ -532,11 +532,10 @@ assert (sample_consistency_orig == sample_consistency_new).all()
 
 print("making unet")
 
-unet = UNet2DConditionModel(
+unet = UNet2DModel(
     in_channels=in_channels,
     out_channels=out_channels,
     down_block_types=("ResnetDownsampleBlock2D", "ResnetDownsampleBlock2D", "ResnetDownsampleBlock2D", "ResnetDownsampleBlock2D"),
-    mid_block_type = "UNetMidBlock2D",
     up_block_types=("ResnetUpsampleBlock2D", "ResnetUpsampleBlock2D", "ResnetUpsampleBlock2D", "ResnetUpsampleBlock2D"),
     block_out_channels=block_out_channels,
     layers_per_block=3,
@@ -544,11 +543,8 @@ unet = UNet2DConditionModel(
     norm_eps=norm_eps,
     resnet_time_scale_shift="scale_shift",
     time_embedding_type="learned",
-    time_embedding_dim=time_embedding_dim,
-    conv_in_kernel=conv_in_kernel,
-    conv_out_kernel=conv_out_kernel,
     num_train_timesteps=num_train_timesteps,
-    unet_mid_block_num_layers=1,
+    add_attention=False,
 )
 
 unet_state_dict = {}
